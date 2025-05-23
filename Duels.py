@@ -3,6 +3,7 @@ from discord.ext import commands
 import aiohttp, random, os, asyncio, json
 import datetime as dt
 from zoneinfo import ZoneInfo
+from collections import defaultdict
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -10,7 +11,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 DUEL_TIMEOUT = 30 * 60  # 30 minutes
-DUELS = {}  # {channel_id: duel_data}
+DUELS = defaultdict(list)  # {channel_id: duel_data}
 USERNAME_FILE = "usernames.json"
 
 # Load or initialize usernames
@@ -125,14 +126,17 @@ async def duel(ctx, opponent: discord.Member):
 **{title}**
 <{url}>\n
 You have 30 minutes. I'll be watching 👀""")
-            DUELS[ctx.channel.id] = {
-                "slug": slug,
-                "challenger": ctx.author,
-                "opponent": opponent,
-                "start_time": dt.datetime.now(dt.timezone.utc).timestamp(),
-                "ended": False
+            duel_data = {
+                "slug":        slug,
+                "challenger":  ctx.author,
+                "opponent":    opponent,
+                "start_time":  dt.datetime.now(dt.timezone.utc).timestamp()
             }
-            bot.loop.create_task(watch_duel(ctx.channel))
+            # append to list for this channel
+            DUELS[ctx.channel.id].append(duel_data)
+            # pass duel_data into watcher
+            bot.loop.create_task(watch_duel(ctx.channel, duel_data))
+
 
     class DuelView(discord.ui.View):
         def __init__(self):
@@ -168,9 +172,9 @@ async def watch_duel(channel):
         await channel.send(f"🏆 {solved.mention} solved the problem first! GG!")
     else:
         await channel.send("⏰ Time's up! No one solved the problem. It's a draw!")
-    DUELS[channel.id]["ended"] = True
-    await asyncio.sleep(5)
-    del DUELS[channel.id]
+    DUELS[channel.id].remove(duel)
+    if not DUELS[channel.id]:
+        del DUELS[channel.id]
 
 @bot.command()
 async def linkleetcode(ctx, username):
