@@ -1,1 +1,5 @@
 /.venv
+/test.py
+/pycache
+/__pycache__
+/cogs/__pycache__
