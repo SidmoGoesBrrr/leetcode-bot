@@ -3,6 +3,7 @@ from discord.ext import commands
 import aiohttp, random, asyncio, json, os
 import datetime as dt
 from collections import defaultdict
+from graphql_queries import QUERY_DUEL_PROBLEM, QUERY_SINGLE_PROBLEM, QUERY_USER_SOLVED
 
 DUEL_TIMEOUT = 30 * 60  # 30 minutes
 DUELS = defaultdict(list)
@@ -74,32 +75,25 @@ class Duel(commands.Cog):
         await ctx.send(f"⚔️ {ctx.author.mention} vs {opponent.mention}!", view=DuelView(self))
 
     async def fetch_random_problem(self, difficulty):
-        query_problem = """
-        query problemsetQuestionList($categorySlug: String, $limit: Int, $skip: Int, $filters: QuestionListFilterInput) {
-          problemsetQuestionList: questionList(categorySlug: $categorySlug, limit: $limit, skip: $skip, filters: $filters) {
-            questions: data { title titleSlug difficulty }
-          }
-        }"""
-        query_single_problem = "query questionTitle($titleSlug: String!) { question(titleSlug: $titleSlug) { isPaidOnly } }"
+        
         async with aiohttp.ClientSession() as session:
             for _ in range(10):
                 vars = {"categorySlug": "", "skip": random.randint(0, 500), "limit": 1, "filters": {"difficulty": difficulty}}
-                async with session.post("https://leetcode.com/graphql", json={"query": query_problem, "variables": vars}) as resp:
+                async with session.post("https://leetcode.com/graphql", json={"query": QUERY_DUEL_PROBLEM, "variables": vars}) as resp:
                     data = await resp.json()
                     questions = data["data"]["problemsetQuestionList"]["questions"]
                     if questions:
                         question = questions[0]
                         slug = question["titleSlug"]
-                        async with session.post("https://leetcode.com/graphql", json={"query": query_single_problem, "variables": {"titleSlug": slug}}) as sub_resp:
+                        async with session.post("https://leetcode.com/graphql", json={"query": QUERY_SINGLE_PROBLEM, "variables": {"titleSlug": slug}}) as sub_resp:
                             sub_data = await sub_resp.json()
                             if not sub_data["data"]["question"]["isPaidOnly"]:
                                 return question
         return None
 
     async def has_solved(self, username, slug, since_timestamp):
-        query = "query getACSubmissions ($username: String!, $limit: Int) { recentAcSubmissionList(username: $username, limit: $limit) { titleSlug timestamp } }"
         async with aiohttp.ClientSession() as session:
-            async with session.post("https://leetcode.com/graphql", json={"query": query, "variables": {"username": username, "limit": 2}}) as resp:
+            async with session.post("https://leetcode.com/graphql", json={"query": QUERY_USER_SOLVED, "variables": {"username": username, "limit": 2}}) as resp:
                 data = await resp.json()
                 for sub in data.get("data", {}).get("recentAcSubmissionList", []):
                     if sub["titleSlug"] == slug and int(sub["timestamp"]) >= since_timestamp:

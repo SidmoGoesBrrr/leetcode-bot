@@ -18,12 +18,18 @@ async def reload(ctx):
     """Reload all cogs."""
     for filename in os.listdir("./cogs"):
         if filename.endswith(".py") and filename != "__init__.py":
-            await bot.reload_extension(f"cogs.{filename[:-3]}")
+            try:
+                await bot.reload_extension(f"cogs.{filename[:-3]}")
+            except Exception as e:
+                await ctx.send(f"❌ Failed to reload {filename[:-3]}: {e}")
+                print(f"Failed to reload {filename[:-3]}: {e}")
+                return
     await ctx.send("✅ All cogs reloaded successfully.")
 
 async def load_cogs():
     for filename in os.listdir("./cogs"):
         if filename.endswith(".py") and filename != "__init__.py":
+            print(f"Loading cog: {filename[:-3]}")
             await bot.load_extension(f"cogs.{filename[:-3]}")
 
 if __name__ == "__main__":
